@@ -357,8 +357,11 @@ namespace bgfx { namespace d3d9
 
 			BGFX_FATAL(m_d3d9, Fatal::UnableToInitialize, "Unable to create Direct3D.");
 
-			m_adapter = D3DADAPTER_DEFAULT;
-			m_deviceType = D3DDEVTYPE_HAL;
+			m_adapter    = D3DADAPTER_DEFAULT;
+			m_deviceType = BGFX_PCI_ID_SOFTWARE_RASTERIZER == g_caps.vendorId
+				? D3DDEVTYPE_REF
+				: D3DDEVTYPE_HAL
+				;
 
 			uint8_t numGPUs = uint8_t(bx::uint32_min(BX_COUNTOF(g_caps.gpu), m_d3d9->GetAdapterCount() ) );
 			for (uint32_t ii = 0; ii < numGPUs; ++ii)
@@ -403,7 +406,10 @@ namespace bgfx { namespace d3d9
 			DX_CHECK(m_d3d9->GetAdapterIdentifier(m_adapter, 0, &m_identifier) );
 			m_amd    = m_identifier.VendorId == BGFX_PCI_ID_AMD;
 			m_nvidia = m_identifier.VendorId == BGFX_PCI_ID_NVIDIA;
-			g_caps.vendorId = (uint16_t)m_identifier.VendorId;
+			g_caps.vendorId = 0 == m_identifier.VendorId
+				? BGFX_PCI_ID_SOFTWARE_RASTERIZER
+				: (uint16_t)m_identifier.VendorId
+				;
 			g_caps.deviceId = (uint16_t)m_identifier.DeviceId;
 
 			uint32_t behaviorFlags[] =
@@ -524,6 +530,14 @@ namespace bgfx { namespace d3d9
 						, D3DRTYPE_TEXTURE
 						, s_textureFormat[ii].m_fmt
 						) ) ? BGFX_CAPS_FORMAT_TEXTURE_COLOR : BGFX_CAPS_FORMAT_TEXTURE_NONE;
+
+					support |= SUCCEEDED(m_d3d9->CheckDeviceFormat(m_adapter
+						, m_deviceType
+						, adapterFormat
+						, D3DUSAGE_QUERY_SRGBREAD
+						, D3DRTYPE_TEXTURE
+						, s_textureFormat[ii].m_fmt
+						) ) ? BGFX_CAPS_FORMAT_TEXTURE_COLOR_SRGB : BGFX_CAPS_FORMAT_TEXTURE_NONE;
 
 					support |= SUCCEEDED(m_d3d9->CheckDeviceFormat(m_adapter
 						, m_deviceType
@@ -1071,6 +1085,8 @@ namespace bgfx { namespace d3d9
 					DX_CHECK(m_device->SetRenderTarget(ii, NULL) );
 				}
 				DX_CHECK(m_device->SetDepthStencilSurface(m_backBufferDepthStencil) );
+
+				DX_CHECK(m_device->SetRenderState(D3DRS_SRGBWRITEENABLE, 0 != (m_flags & BGFX_RESET_SRGB_BACKBUFFER) ));
 			}
 			else
 			{
@@ -1092,6 +1108,8 @@ namespace bgfx { namespace d3d9
 
 				IDirect3DSurface9* depthStencil = frameBuffer.m_depthStencil;
 				DX_CHECK(m_device->SetDepthStencilSurface(NULL != depthStencil ? depthStencil : m_backBufferDepthStencil) );
+
+				DX_CHECK(m_device->SetRenderState(D3DRS_SRGBWRITEENABLE, FALSE) );
 			}
 
 			m_fbh = _fbh;
@@ -1282,7 +1300,7 @@ namespace bgfx { namespace d3d9
 
 		void setSamplerState(uint8_t _stage, uint32_t _flags, bool _vertex = false)
 		{
-			const uint32_t flags = _flags&( (~BGFX_TEXTURE_RESERVED_MASK) | BGFX_TEXTURE_SAMPLER_BITS_MASK);
+			const uint32_t flags = _flags&( (~BGFX_TEXTURE_RESERVED_MASK) | BGFX_TEXTURE_SAMPLER_BITS_MASK | BGFX_TEXTURE_SRGB);
 			BX_CHECK(_stage < BX_COUNTOF(m_samplerFlags), "");
 			if (m_samplerFlags[_stage][_vertex] != flags)
 			{
@@ -1304,6 +1322,7 @@ namespace bgfx { namespace d3d9
 				DX_CHECK(device->SetSamplerState(stage, D3DSAMP_MAGFILTER, magFilter) );
 				DX_CHECK(device->SetSamplerState(stage, D3DSAMP_MIPFILTER, mipFilter) );
 				DX_CHECK(device->SetSamplerState(stage, D3DSAMP_MAXANISOTROPY, m_maxAnisotropy) );
+				DX_CHECK(device->SetSamplerState(stage, D3DSAMP_SRGBTEXTURE, 0 != (flags & BGFX_TEXTURE_SRGB)) );
 			}
 		}
 
@@ -2415,6 +2434,11 @@ namespace bgfx { namespace d3d9
 			else
 			{
 				createTexture(textureWidth, textureHeight, numMips);
+			}
+
+			if (imageContainer.m_srgb)
+			{
+				m_flags |= BGFX_TEXTURE_SRGB;
 			}
 
 			BX_TRACE("Texture %3d: %s (requested: %s), %dx%d%s%s."

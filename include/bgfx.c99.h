@@ -150,9 +150,23 @@ typedef enum bgfx_uniform_type
 
 } bgfx_uniform_type_t;
 
+typedef enum bgfx_backbuffer_ratio
+{
+    BGFX_BACKBUFFER_RATIO_EQUAL,
+    BGFX_BACKBUFFER_RATIO_HALF,
+    BGFX_BACKBUFFER_RATIO_QUARTER,
+    BGFX_BACKBUFFER_RATIO_EIGHTH,
+    BGFX_BACKBUFFER_RATIO_SIXTEENTH,
+    BGFX_BACKBUFFER_RATIO_DOUBLE,
+
+    BGFX_BACKBUFFER_RATIO_COUNT
+
+} bgfx_backbuffer_ratio_t;
+
 #define BGFX_HANDLE_T(_name) \
     typedef struct _name { uint16_t idx; } _name##_t;
 
+BGFX_HANDLE_T(bgfx_indirect_buffer_handle);
 BGFX_HANDLE_T(bgfx_dynamic_index_buffer_handle);
 BGFX_HANDLE_T(bgfx_dynamic_vertex_buffer_handle);
 BGFX_HANDLE_T(bgfx_frame_buffer_handle);
@@ -692,7 +706,7 @@ BGFX_C_API void bgfx_dbg_text_image(uint16_t _x, uint16_t _y, uint16_t _width, u
  *  NOTE:
  *    Only 16-bit index buffer is supported.
  */
-BGFX_C_API bgfx_index_buffer_handle_t bgfx_create_index_buffer(const bgfx_memory_t* _mem);
+BGFX_C_API bgfx_index_buffer_handle_t bgfx_create_index_buffer(const bgfx_memory_t* _mem, uint8_t _flags);
 
 /**
  *  Destroy static index buffer.
@@ -723,7 +737,7 @@ BGFX_C_API void bgfx_destroy_vertex_buffer(bgfx_vertex_buffer_handle_t _handle);
  *  NOTE:
  *    Only 16-bit index buffer is supported.
  */
-BGFX_C_API bgfx_dynamic_index_buffer_handle_t bgfx_create_dynamic_index_buffer(uint32_t _num);
+BGFX_C_API bgfx_dynamic_index_buffer_handle_t bgfx_create_dynamic_index_buffer(uint32_t _num, uint8_t _flags);
 
 /**
  *  Create dynamic index buffer and initialized it.
@@ -733,7 +747,7 @@ BGFX_C_API bgfx_dynamic_index_buffer_handle_t bgfx_create_dynamic_index_buffer(u
  *  NOTE:
  *    Only 16-bit index buffer is supported.
  */
-BGFX_C_API bgfx_dynamic_index_buffer_handle_t bgfx_create_dynamic_index_buffer_mem(const bgfx_memory_t* _mem);
+BGFX_C_API bgfx_dynamic_index_buffer_handle_t bgfx_create_dynamic_index_buffer_mem(const bgfx_memory_t* _mem, uint8_t _flags);
 
 /**
  *  Update dynamic index buffer.
@@ -764,7 +778,7 @@ BGFX_C_API bgfx_dynamic_vertex_buffer_handle_t bgfx_create_dynamic_vertex_buffer
  *  @param _mem Vertex buffer data.
  *  @param _decl Vertex declaration.
  */
-BGFX_C_API bgfx_dynamic_vertex_buffer_handle_t bgfx_create_dynamic_vertex_buffer_mem(const bgfx_memory_t* _mem, const bgfx_vertex_decl_t* _decl);
+BGFX_C_API bgfx_dynamic_vertex_buffer_handle_t bgfx_create_dynamic_vertex_buffer_mem(const bgfx_memory_t* _mem, const bgfx_vertex_decl_t* _decl, uint8_t _flags);
 
 /**
  *  Update dynamic vertex buffer.
@@ -859,6 +873,16 @@ BGFX_C_API bool bgfx_alloc_transient_buffers(bgfx_transient_vertex_buffer_t* _tv
 BGFX_C_API const bgfx_instance_data_buffer_t* bgfx_alloc_instance_data_buffer(uint32_t _num, uint16_t _stride);
 
 /**
+ *
+ */
+BGFX_C_API bgfx_indirect_buffer_handle_t bgfx_create_indirect_buffer(uint32_t _num);
+
+/**
+ *
+ */
+BGFX_C_API void bgfx_destroy_indirect_buffer(bgfx_indirect_buffer_handle_t _handle);
+
+/**
  *  Create shader from memory buffer.
  */
 BGFX_C_API bgfx_shader_handle_t bgfx_create_shader(const bgfx_memory_t* _mem);
@@ -934,6 +958,16 @@ BGFX_C_API bgfx_texture_handle_t bgfx_create_texture(const bgfx_memory_t* _mem, 
  *  @param _mem
  */
 BGFX_C_API bgfx_texture_handle_t bgfx_create_texture_2d(uint16_t _width, uint16_t _height, uint8_t _numMips, bgfx_texture_format_t _format, uint32_t _flags, const bgfx_memory_t* _mem);
+
+/**
+*  Create 2D texture that scales with backbuffer size.
+*
+*  @param _ratio
+*  @param _numMips
+*  @param _format
+*  @param _flags
+*/
+BGFX_C_API bgfx_texture_handle_t bgfx_create_texture_2d_scaled(bgfx_backbuffer_ratio_t _ratio, uint8_t _numMips, bgfx_texture_format_t _format, uint32_t _flags);
 
 /**
  *  Create 3D texture.
@@ -1038,6 +1072,15 @@ BGFX_C_API void bgfx_destroy_texture(bgfx_texture_handle_t _handle);
  *  @param _textureFlags Texture flags.
  */
 BGFX_C_API bgfx_frame_buffer_handle_t bgfx_create_frame_buffer(uint16_t _width, uint16_t _height, bgfx_texture_format_t _format, uint32_t _textureFlags);
+
+/**
+*  Create frame buffer that scales with backbuffer size.
+*
+*  @param _ratio Backbuffer ratio.
+*  @param _format Texture format.
+*  @param _textureFlags Texture flags.
+*/
+BGFX_C_API bgfx_frame_buffer_handle_t bgfx_create_frame_buffer_scaled(bgfx_backbuffer_ratio_t _ratio, bgfx_texture_format_t _format, uint32_t _textureFlags);
 
 /**
  *  Create frame buffer.
@@ -1389,6 +1432,11 @@ BGFX_C_API uint32_t bgfx_submit(uint8_t _id, int32_t _depth);
 /**
  *
  */
+BGFX_C_API uint32_t bgfx_submit_indirect(uint8_t _id, bgfx_indirect_buffer_handle_t _indirectHandle, uint16_t _start, uint16_t _num, int32_t _depth);
+
+/**
+ *
+ */
 BGFX_C_API void bgfx_set_image(uint8_t _stage, bgfx_uniform_handle_t _sampler, bgfx_texture_handle_t _handle, uint8_t _mip, bgfx_access_t _access, bgfx_texture_format_t _format);
 
 /**
@@ -1399,7 +1447,12 @@ BGFX_C_API void bgfx_set_image_from_frame_buffer(uint8_t _stage, bgfx_uniform_ha
 /**
  * Dispatch compute.
  */
-BGFX_C_API void bgfx_dispatch(uint8_t _id, bgfx_program_handle_t _handle, uint16_t _numX, uint16_t _numY, uint16_t _numZ, uint8_t _flags);
+BGFX_C_API uint32_t bgfx_dispatch(uint8_t _id, bgfx_program_handle_t _handle, uint16_t _numX, uint16_t _numY, uint16_t _numZ, uint8_t _flags);
+
+/**
+ *
+ */
+BGFX_C_API uint32_t bgfx_dispatch_indirect(uint8_t _id, bgfx_program_handle_t _handle, bgfx_indirect_buffer_handle_t _indirectHandle, uint16_t _start, uint16_t _num, uint8_t _flags);
 
 /**
  *  Discard all previously set state for draw call.
